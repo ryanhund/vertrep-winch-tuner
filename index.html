@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Winch Tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Styling follows the stringline design system (docs/DESIGN.md there): Nord neutrals,
+   fjord blue as the one interactive accent, Archivo, 28px controls, 4/8px corners,
+   hierarchy by weight and size, never by capitals. The dark set is the same palette's
+   Polar Night steps. */
+:root {
+  --surface: #ffffff; --ground: #f5f7fa; --ground-hover: #eceff4;
+  --ink: #2e3440; --ink-muted: #616e88; --ink-faint: #7b879d; --ink-disabled: #9ba6b6;
+  --line: #e5e9f0; --line-strong: #d8dee9;
+  --accent: #4a6b94; --accent-hover: #3e5a7d; --accent-soft: #edf2f8; --accent-line: #c6d5e6; --on-accent: #ffffff;
+  --warning-strong: #8a672a;
+  --tip-bg: #2e3440; --tip-ink: #eceff4; --tip-link: #a9c2e0;
+  --view-ground: #f5f7fa;
+  --model: #c3cad5; --glass: #81a1c1; --rotor: #6b7588; --gear: #9a8f80; --crew: #b48a6a;
+  --edge: #2e3440; --attach: #bf616a; --hub: #5e81ac; --disc: #5e81ac; --winch: #d08770; --person: #5b7b44; --rope: #2e3440;
+  --ax-x: #bf616a; --ax-y: #5b7b44; --ax-z: #5e81ac;
+  --radius-control: 4px; --radius-card: 8px; --control-h: 28px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #3b4252; --ground: #2e3440; --ground-hover: #434c5e;
+    --ink: #eceff4; --ink-muted: #d8dee9; --ink-faint: #a7b1c2; --ink-disabled: #6b7588;
+    --line: #434c5e; --line-strong: #4c566a;
+    --accent: #81a1c1; --accent-hover: #93b1cf; --accent-soft: #46536a; --accent-line: #5a6f8c; --on-accent: #2e3440;
+    --warning-strong: #ebcb8b;
+    --tip-bg: #eceff4; --tip-ink: #2e3440; --tip-link: #4a6b94;
+    --view-ground: #2b313c;
+    --model: #8b94a5; --glass: #6f8fb0; --rotor: #5c6577; --gear: #7d7466; --crew: #94735a;
+    --edge: #20242c; --attach: #d08a91; --hub: #88a8cc; --disc: #88a8cc; --winch: #e09a82; --person: #a3be8c; --rope: #eceff4;
+    --ax-x: #d08a91; --ax-y: #a3be8c; --ax-z: #88a8cc;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #3b4252; --ground: #2e3440; --ground-hover: #434c5e;
+  --ink: #eceff4; --ink-muted: #d8dee9; --ink-faint: #a7b1c2; --ink-disabled: #6b7588;
+  --line: #434c5e; --line-strong: #4c566a;
+  --accent: #81a1c1; --accent-hover: #93b1cf; --accent-soft: #46536a; --accent-line: #5a6f8c; --on-accent: #2e3440;
+  --warning-strong: #ebcb8b;
+  --tip-bg: #eceff4; --tip-ink: #2e3440; --tip-link: #4a6b94;
+  --view-ground: #2b313c;
+  --model: #8b94a5; --glass: #6f8fb0; --rotor: #5c6577; --gear: #7d7466; --crew: #94735a;
+  --edge: #20242c; --attach: #d08a91; --hub: #88a8cc; --disc: #88a8cc; --winch: #e09a82; --person: #a3be8c; --rope: #eceff4;
+  --ax-x: #d08a91; --ax-y: #a3be8c; --ax-z: #88a8cc;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 11px/1.45 "Archivo", ui-sans-serif, system-ui, sans-serif; overflow-x: hidden; }
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-areas: "side view"; gap: 12px; padding-block: 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); align-items: start; }
+.side { grid-area: side; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.viewwrap { grid-area: view; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 12px; min-width: 0; }
+.card h1 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+.card p { margin: 0; color: var(--ink-muted); }
+.card h2 { font-size: 12px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--control-h); }
+.card h2 > span { display: inline-flex; align-items: center; gap: 4px; }
+.label { font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.split { justify-content: space-between; }
+button, input[type=number], textarea { font: inherit; color: var(--ink); }
+button { height: var(--control-h); padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: var(--radius-control); cursor: pointer; white-space: nowrap; transition: background-color .1s, color .1s; }
+.btn { background: var(--surface); color: var(--ink-muted); border: 1px solid var(--line); }
+.btn:hover { background: var(--ground); color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.btn.primary:hover { background: var(--accent-hover); }
+.btn:disabled, .btn.primary:disabled { background: var(--line); color: var(--ink-disabled); border-color: transparent; cursor: not-allowed; }
+.ghost { background: transparent; color: var(--ink-muted); border: 1px solid transparent; }
+.ghost:hover { background: var(--ground-hover); color: var(--ink); }
+.ghost:disabled { color: var(--line-strong); background: transparent; cursor: not-allowed; }
+.icon { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+:where(button, a, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* segmented control: 6px track, 2px padding, 4px thumb */
+.seg { display: inline-flex; align-items: center; background: var(--line); border-radius: 6px; padding: 2px; height: var(--control-h); }
+.seg button { height: 100%; padding: 0 12px; border: 0; background: transparent; color: var(--ink-muted); font-weight: 400; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: 0 1px 2px rgb(46 52 64 / .12); }
+.seg button:disabled { color: var(--ink-disabled); cursor: not-allowed; }
+/* files: a dashed border means a drop zone */
+.drop { border: 1px dashed var(--line-strong); border-radius: var(--radius-card); padding: 4px 4px 4px 8px; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.slot { display: grid; grid-template-columns: 30px minmax(0, 1fr) 24px; gap: 8px; align-items: center; min-height: 24px; }
+.slot .k { color: var(--ink-faint); }
+.slot .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot .v.empty { color: var(--ink-faint); }
+.drop .btn { margin: 4px 0 4px; }
+.notes { margin-top: 8px; font-size: 10px; color: var(--warning-strong); }
+.notes:empty { display: none; }
+/* winch position: field with a stepper on each side */
+.axis { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: center; }
+.axis + .axis { margin-top: 4px; }
+.axis b { font-size: 12px; font-weight: 600; color: var(--ink-muted); }
+.stepper { display: flex; }
+.stepper button { width: 32px; padding: 0; background: var(--surface); color: var(--ink-muted); border: 1px solid var(--line); border-radius: 0; margin-left: -1px; font-variant-numeric: tabular-nums; }
+.stepper button:hover { background: var(--ground); color: var(--ink); position: relative; }
+.stepper button:first-child { border-radius: var(--radius-control) 0 0 var(--radius-control); margin-left: 0; }
+.stepper button:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+.stepper button:disabled { color: var(--ink-disabled); background: var(--surface); cursor: not-allowed; }
+.stepper input { flex: 1; min-width: 0; height: var(--control-h); margin-left: -1px; padding: 0 6px; text-align: center; font-variant-numeric: tabular-nums; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 0; outline: none; position: relative; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper input:focus { border-color: var(--accent); z-index: 1; }
+.stepper input:disabled { background: var(--line); color: var(--ink-disabled); }
+textarea { display: block; width: 100%; min-height: 48px; padding: 6px 8px; font-size: 11px; font-variant-numeric: tabular-nums; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-control); resize: vertical; white-space: pre; outline: none; }
+/* help: a dashed-underlined ? that shows a card on hover, and pins it on click */
+.help { height: auto; padding: 0 1px; border: 0; background: transparent; color: var(--ink-faint); font-weight: 600; font-size: 11px; text-decoration: underline dashed; text-underline-offset: 2px; cursor: help; }
+.help:hover, .help[aria-expanded="true"] { color: var(--accent); }
+.tip { position: fixed; z-index: 10000; max-width: 260px; padding: 6px 9px; background: var(--tip-bg); color: var(--tip-ink); font-size: 11px; font-weight: 400; line-height: 1.4; border-radius: var(--radius-control); box-shadow: 0 6px 20px rgb(46 52 64 / .25); white-space: normal; text-transform: none; letter-spacing: 0; }
+.tip[hidden] { display: none; }
+.tip p { margin: 0; color: inherit; }
+.tip p + p { margin-top: 6px; }
+.tip a { color: var(--tip-link); }
+/* 3D view */
+.viewwrap { position: relative; background: var(--view-ground); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; height: calc(100vh - 24px); min-height: 360px; }
+#view { display: block; width: 100%; height: 100%; touch-action: none; }
+.viewbar { position: absolute; right: 8px; bottom: 8px; }
+#legend { position: absolute; left: 8px; bottom: 8px; width: 140px; height: 140px; pointer-events: none; }
+@media (max-width: 820px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "view" "side"; }
+  .viewwrap { height: 60vh; }
+  .viewbar { left: 8px; right: 8px; display: flex; justify-content: flex-end; overflow-x: auto; }
+  #legend { width: 96px; height: 96px; bottom: 44px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="card">
+      <h1>VERTREP Winch Position Tuner</h1>
+      <p>Use this tool to fine-tune the position of the winch on your modded helicopters for compatibility with <a href="https://steamcommunity.com/workshop/filedetails/discussion/3843863472" target="_blank" rel="noopener">VERTREP</a>.</p>
+    </div>
+    <div class="card">
+      <h2>Helicopter model</h2>
+      <div class="drop" id="drop">
+        <div id="slots"></div>
+        <button class="btn" id="choose">Choose files</button>
+        <input type="file" id="files" multiple accept=".ini,.obj" hidden>
+      </div>
+      <div class="row split" style="margin-top: 12px">
+        <span class="label">Winch Location <button class="help" data-help="helpSide" aria-label="About winch location" aria-expanded="false">?</button></span>
+        <div class="seg" id="sideSeg">
+          <button data-side="Port">Port</button><button data-side="Starboard" class="on">Starboard</button>
+        </div>
+      </div>
+      <div class="notes" id="loadLog"></div>
+    </div>
+    <div class="card">
+      <h2>Winch position <button class="btn" id="reset">Reset</button></h2>
+      <div class="axis"><b>X</b><div class="stepper"><button data-ax="0" data-d="-0.001" aria-label="X big step down">&minus;&minus;</button><button data-ax="0" data-d="-0.0001" aria-label="X small step down">&minus;</button><input type="number" id="px" step="0.0001" aria-label="X"><button data-ax="0" data-d="0.0001" aria-label="X small step up">+</button><button data-ax="0" data-d="0.001" aria-label="X big step up">++</button></div></div>
+      <div class="axis"><b>Y</b><div class="stepper"><button data-ax="1" data-d="-0.001" aria-label="Y big step down">&minus;&minus;</button><button data-ax="1" data-d="-0.0001" aria-label="Y small step down">&minus;</button><input type="number" id="py" step="0.0001" aria-label="Y"><button data-ax="1" data-d="0.0001" aria-label="Y small step up">+</button><button data-ax="1" data-d="0.001" aria-label="Y big step up">++</button></div></div>
+      <div class="axis"><b>Z</b><div class="stepper"><button data-ax="2" data-d="-0.001" aria-label="Z big step down">&minus;&minus;</button><button data-ax="2" data-d="-0.0001" aria-label="Z small step down">&minus;</button><input type="number" id="pz" step="0.0001" aria-label="Z"><button data-ax="2" data-d="0.0001" aria-label="Z small step up">+</button><button data-ax="2" data-d="0.001" aria-label="Z big step up">++</button></div></div>
+    </div>
+    <div class="card">
+      <h2><span>Export <button class="help" data-help="helpExport" aria-label="About export" aria-expanded="false">?</button></span> <button class="btn primary" id="copy">Copy</button></h2>
+      <textarea id="out" readonly spellcheck="false" aria-label="Export"></textarea>
+    </div>
+  </aside>
+  <div class="viewwrap">
+    <canvas id="view"></canvas>
+    <canvas id="legend" aria-hidden="true"></canvas>
+    <div class="viewbar">
+      <div class="seg" id="viewSeg">
+        <button data-view="default" class="on">Default</button><button data-view="port">Port</button><button data-view="stbd">Stbd</button><button data-view="top">Top</button><button data-view="front">Front</button><button data-view="rear">Rear</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="helpSide" role="tooltip" hidden>
+  <p>The side of the helicopter where the winch is located. On most ships, this also affects the direction the helicopter approaches from. A helicopter with the winch on the starboard side will approach the ship from left to right, so that the hoist operator can see the target and provide instructions to the pilot.</p>
+  <p>For helicopters with winches on the stern ramp, direction is your preference.</p>
+</div>
+<div class="tip" id="helpExport" role="tooltip" hidden>
+  <p>Copy these lines into the .ini file, in the [HelicopterLoading] section. <a href="https://steamcommunity.com/workshop/filedetails/discussion/3843863472/569303665182070519/" target="_blank" rel="noopener">See the guide for details.</a></p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+"use strict";
+const M_PER_UNIT = 67.200066;   // game units to meters
+const LINE_M = 15;              // hoist line shown under the winch, meters
+
+// ---------- persistence: the only two functions that touch storage ----------
+const STORE_KEY = "winch-tuner-public-v2";
+function loadState() {
+  try { const raw = window.localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function saveState(state) {
+  try { window.localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+}
+// state.inis[ini] = { p: [x,y,z] meters in the .ini frame, side, touched }
+let state = loadState();
+if (!state || typeof state !== "object" || !state.inis || typeof state.inis !== "object") state = { inis: {} };
+function persist() { saveState(state); }
+const validP = p => Array.isArray(p) && p.length === 3 && p.every(v => typeof v === "number" && isFinite(v));
+
+// page frame (three.js, meters): +X starboard, +Y up, -Z forward; .ini frame: +Z forward
+function toIni(v) { return [v[0], v[1], -v[2]]; }
+function fromIni(p) { return new THREE.Vector3(p[0], p[1], -p[2]); }
+function defaultEntry(h) { return { p: toIni(h.est), side: h.side, touched: false }; }
+
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---------- three.js ----------
+const canvas = $("view");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 500);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.screenSpacePanning = true;
+camera.position.set(9, 5.4, -4.2);   // the default view's angle, so the legend reads before a model is loaded
+controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.55); sun.position.set(-0.5, 1, 0.6); scene.add(sun);
+const sun2 = new THREE.DirectionalLight(0xffffff, 0.25); sun2.position.set(0.6, -0.3, -0.8); scene.add(sun2);
+
+const mats = {};
+function makeMats() {
+  const c = n => new THREE.Color(css(n));
+  const opts = { flatShading: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.0 };
+  mats.body = new THREE.MeshStandardMaterial(Object.assign({ color: c("--model") }, opts));
+  mats.gear = new THREE.MeshStandardMaterial(Object.assign({ color: c("--gear") }, opts));
+  mats.crew = new THREE.MeshStandardMaterial(Object.assign({ color: c("--crew") }, opts));
+  mats.rotor = new THREE.MeshStandardMaterial(Object.assign({ color: c("--rotor") }, opts));
+  mats.glass = new THREE.MeshStandardMaterial(Object.assign({ color: c("--glass"), transparent: true, opacity: 0.55, depthWrite: false }, opts));
+  mats.edge = new THREE.LineBasicMaterial({ color: c("--edge"), transparent: true, opacity: 0.45 });
+  mats.attach = new THREE.MeshBasicMaterial({ color: c("--attach") });
+  mats.hub = new THREE.MeshBasicMaterial({ color: c("--hub") });
+  mats.disc = new THREE.MeshBasicMaterial({ color: c("--disc"), transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false });
+  mats.discEdge = new THREE.LineBasicMaterial({ color: c("--disc"), transparent: true, opacity: 0.6 });
+  mats.marker = new THREE.MeshBasicMaterial({ color: c("--winch"), depthTest: false, transparent: true });
+  mats.rope = new THREE.LineBasicMaterial({ color: c("--rope") });
+  mats.person = new THREE.MeshStandardMaterial({ color: c("--person"), flatShading: true });
+  renderer.setClearColor(new THREE.Color(css("--view-ground")));
+}
+makeMats();
+
+function buildHelo(h) {
+  const group = new THREE.Group(), pickables = [], box = new THREE.Box3();
+  for (const g of h.meshes) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(g.pos, 3));
+    geo.setIndex(new THREE.BufferAttribute(g.idx, 1));
+    geo.computeVertexNormals(); geo.computeBoundingSphere(); geo.computeBoundingBox();
+    box.union(geo.boundingBox);
+    const mesh = new THREE.Mesh(geo, mats[g.cat]);
+    if (g.cat === "glass") mesh.renderOrder = 2;
+    group.add(mesh);
+    pickables.push(mesh);
+    if (g.cat !== "glass") group.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 28), mats.edge));
+  }
+  const modelBox = box.isEmpty() ? null : box.clone();
+  if (box.isEmpty()) {   // .ini only: frame the reference points
+    box.expandByPoint(new THREE.Vector3(-2, -1, -4)); box.expandByPoint(new THREE.Vector3(2, 2, 4));
+    for (const r of h.refs) box.expandByPoint(new THREE.Vector3(r.p[0], r.p[1], r.p[2]));
+  }
+  // rotor discs
+  for (const r of h.rotors) {
+    if (r.type !== "main" && r.type !== "") continue;
+    const holder = new THREE.Group();
+    holder.add(new THREE.Mesh(new THREE.CircleGeometry(r.radius, 96), mats.disc));
+    holder.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(
+      Array.from({ length: 128 }, (_, k) => new THREE.Vector3(Math.cos(k / 128 * 2 * Math.PI) * r.radius, Math.sin(k / 128 * 2 * Math.PI) * r.radius, 0))), mats.discEdge));
+    holder.position.set(r.hub[0], r.hub[1], r.hub[2]);
+    holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(r.axis[0], r.axis[1], r.axis[2]));
+    group.add(holder);
+  }
+  // .ini reference points
+  const sph = new THREE.SphereGeometry(0.09, 12, 8);
+  for (const r of h.refs) {
+    const m = new THREE.Mesh(sph, r.kind === "attach" ? mats.attach : mats.hub);
+    m.position.set(r.p[0], r.p[1], r.p[2]);
+    m.renderOrder = 5;
+    group.add(m);
+  }
+  let rMax = 0;
+  for (const r of h.rotors) rMax = Math.max(rMax, r.radius);
+  box.expandByPoint(new THREE.Vector3(rMax, 0, rMax)); box.expandByPoint(new THREE.Vector3(-rMax, 0, -rMax));
+  return { group, pickables, box, modelBox };
+}
+
+// ---------- axis legend: a small copy of the model with the game's axes, turning with the view ----------
+const legendCanvas = $("legend");
+const legendRenderer = new THREE.WebGLRenderer({ canvas: legendCanvas, antialias: true, alpha: true });
+legendRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+legendRenderer.setSize(140, 140, false);
+const legendScene = new THREE.Scene();
+const legendCam = new THREE.OrthographicCamera(-1.45, 1.45, 1.45, -1.45, 0.1, 10);
+legendScene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 0.8));
+const legendSun = new THREE.DirectionalLight(0xffffff, 0.5); legendSun.position.set(-0.5, 1, 0.6); legendScene.add(legendSun);
+const legendAxes = new THREE.Group(), legendModel = new THREE.Group();
+legendScene.add(legendAxes); legendScene.add(legendModel);
+function labelSprite(text, color) {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d");
+  g.font = "700 44px Archivo, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = color; g.fillText(text, 32, 34);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  s.scale.set(0.42, 0.42, 1); s.renderOrder = 20;
+  return s;
+}
+function buildLegendAxes() {
+  legendAxes.clear();
+  // game axes in the page frame: X starboard (+x), Y up (+y), Z forward (-z)
+  for (const [name, dir, col] of [["X", [1, 0, 0], css("--ax-x")], ["Y", [0, 1, 0], css("--ax-y")], ["Z", [0, 0, -1], css("--ax-z")]]) {
+    const d = new THREE.Vector3(...dir);
+    const arrow = new THREE.ArrowHelper(d, new THREE.Vector3(), 1, new THREE.Color(col).getHex(), 0.22, 0.12);
+    arrow.traverse(o => { if (o.material) { o.material.depthTest = false; o.renderOrder = 15; } });
+    legendAxes.add(arrow);
+    const l = labelSprite(name, col); l.position.copy(d.multiplyScalar(1.24)); legendAxes.add(l);
+  }
+}
+buildLegendAxes();
+// Before a model is loaded (or with an .ini alone) the legend shows a plain stand-in helicopter,
+// nose toward Z, so the axes still read as the helicopter's own.
+function legendStandIn() {
+  legendModel.clear();
+  legendModel.scale.setScalar(1); legendModel.position.set(0, 0, 0);
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); legendModel.add(m); return m; };
+  add(new THREE.BoxGeometry(0.46, 0.5, 1.05), mats.body, 0, 0, -0.2);              // cabin, nose toward -z (forward)
+  add(new THREE.BoxGeometry(0.4, 0.3, 0.3), mats.glass, 0, 0.02, -0.82);           // windscreen
+  add(new THREE.BoxGeometry(0.12, 0.14, 0.95), mats.body, 0, 0.1, 0.8);            // tail boom
+  add(new THREE.BoxGeometry(0.06, 0.38, 0.22), mats.body, 0, 0.3, 1.2);            // fin
+  const disc = add(new THREE.CylinderGeometry(0.85, 0.85, 0.02, 48), mats.disc, 0, 0.4, -0.1);
+  disc.renderOrder = 3;
+}
+function buildLegendModel(built) {
+  if (!built || !built.modelBox) { legendStandIn(); return; }
+  legendModel.clear();
+  const c = new THREE.Vector3(), s = new THREE.Vector3();
+  built.modelBox.getCenter(c); built.modelBox.getSize(s);
+  const k = 1.7 / Math.max(s.x, s.y, s.z);
+  for (const m of built.pickables) {
+    const copy = new THREE.Mesh(m.geometry, m.material);
+    copy.renderOrder = m.renderOrder;
+    legendModel.add(copy);
+  }
+  legendModel.scale.setScalar(k);
+  legendModel.position.copy(c).multiplyScalar(-k);
+}
+function renderLegend() {
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+  legendCam.position.copy(dir).multiplyScalar(4);
+  legendCam.quaternion.copy(camera.quaternion);
+  legendRenderer.render(legendScene, legendCam);
+}
+
+// marker, line, person
+const marker = new THREE.Group();
+const ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), mats.marker);
+ball.renderOrder = 10;
+marker.add(ball);
+const rope = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, -LINE_M, 0)]), mats.rope);
+marker.add(rope);
+const person = new THREE.Group();
+(function buildPerson() {
+  // 1.8 m tall, hanging upright with the hook 0.15 m above the head
+  const add = (geo, x, y, z) => { const m = new THREE.Mesh(geo, mats.person); m.position.set(x, y, z); person.add(m); };
+  add(new THREE.SphereGeometry(0.11, 12, 8), 0, -0.26, 0);
+  add(new THREE.BoxGeometry(0.42, 0.62, 0.24), 0, -0.73, 0);
+  add(new THREE.BoxGeometry(0.15, 0.88, 0.16), -0.1, -1.49, 0);
+  add(new THREE.BoxGeometry(0.15, 0.88, 0.16), 0.1, -1.49, 0);
+  add(new THREE.BoxGeometry(0.1, 0.62, 0.1), -0.27, -0.75, 0);
+  add(new THREE.BoxGeometry(0.1, 0.62, 0.1), 0.27, -0.75, 0);
+  add(new THREE.BoxGeometry(0.5, 0.06, 0.3), 0, -0.55, 0);
+})();
+person.position.set(0, -LINE_M, 0);
+marker.add(person);
+marker.visible = false;
+scene.add(marker);
+
+let cur = null;   // {h, built}
+const entry = () => state.inis[cur.h.inis[0]];
+function setEntry(fn) { fn(entry()); persist(); }
+const fmt5 = v => (Math.round(v * 1e5) / 1e5).toFixed(5).replace(/^-0\.00000$/, "0.00000");
+
+function updateUI() {
+  const on = !!cur;
+  for (const el of document.querySelectorAll("#sideSeg button, .axis button, .axis input, #reset, #copy")) el.disabled = !on;
+  if (!on) { $("out").value = ""; return; }
+  const e = entry();
+  marker.position.copy(fromIni(e.p));
+  marker.visible = true;
+  const u = e.p.map(v => v / M_PER_UNIT);
+  $("px").value = fmt5(u[0]); $("py").value = fmt5(u[1]); $("pz").value = fmt5(u[2]);
+  for (const b of document.querySelectorAll("#sideSeg button")) b.classList.toggle("on", b.dataset.side === e.side);
+  $("out").value = `HoistPosition=${u.map(fmt5).join(",")}\nHoistSide=${e.side}`;
+}
+
+// ---------- views: all perspective, orbit from any of them ----------
+let currentView = "default";
+function setView(v) {
+  currentView = v;
+  for (const btn of document.querySelectorAll("#viewSeg button")) btn.classList.toggle("on", btn.dataset.view === v);
+  if (!cur) return;
+  const b = cur.built.box, c = new THREE.Vector3(), s = new THREE.Vector3();
+  b.getCenter(c); b.getSize(s);
+  const d = Math.max(s.x, s.y, s.z) * 1.7;
+  const sg = entry().side === "Port" ? -1 : 1;   // the default view looks from the hoist side
+  const dir = {
+    default: new THREE.Vector3(sg * 0.75, 0.45, -0.35),
+    port: new THREE.Vector3(-1, 0, 0), stbd: new THREE.Vector3(1, 0, 0),
+    top: new THREE.Vector3(0, 1, 0.0001), front: new THREE.Vector3(0, 0, -1), rear: new THREE.Vector3(0, 0, 1),
+  }[v].normalize();
+  camera.position.copy(c).addScaledVector(dir, d);
+  camera.up.set(0, 1, 0);
+  controls.target.copy(c);
+  controls.update();
+}
+
+function resize() {
+  const w = canvas.clientWidth, hgt = canvas.clientHeight;
+  if (!w || !hgt) return;
+  renderer.setSize(w, hgt, false);
+  camera.aspect = w / hgt; camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+
+// ---------- picking: a click (not a drag) on the model places the winch ----------
+const ray = new THREE.Raycaster();
+let downAt = null;
+canvas.addEventListener("pointerdown", ev => { downAt = [ev.clientX, ev.clientY]; });
+canvas.addEventListener("pointerup", ev => {
+  if (!downAt || !cur) return;
+  const moved = Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]);
+  downAt = null;
+  if (moved > 5) return;
+  const r = canvas.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hits = ray.intersectObjects(cur.built.pickables, false);
+  if (!hits.length) return;
+  const p = hits[0].point;
+  setEntry(e => { e.p = toIni([p.x, p.y, p.z]).map(v => Math.round(v * 1e6) / 1e6); e.touched = true; });
+  updateUI();
+});
+
+// ---------- controls ----------
+for (const b of document.querySelectorAll("#sideSeg button")) b.addEventListener("click", () => {
+  if (!cur) return;
+  const side = b.dataset.side;
+  setEntry(e => { if (e.side !== side) { e.p[0] = -e.p[0]; e.side = side; } });
+  updateUI();
+});
+for (const b of document.querySelectorAll(".axis button")) b.addEventListener("click", () => {
+  if (!cur) return;
+  const ax = +b.dataset.ax, d = +b.dataset.d * M_PER_UNIT;
+  setEntry(e => { e.p[ax] = Math.round((e.p[ax] + d) * 1e6) / 1e6; e.touched = true; });
+  updateUI();
+});
+["px", "py", "pz"].forEach((id, ax) => $(id).addEventListener("change", () => {
+  if (!cur) return;
+  const v = parseFloat($(id).value);
+  if (isFinite(v)) setEntry(e => { e.p[ax] = v * M_PER_UNIT; e.touched = true; });
+  updateUI();
+}));
+$("reset").addEventListener("click", () => {
+  if (!cur) return;
+  setEntry(e => { const d = defaultEntry(cur.h); e.p = d.p; e.side = d.side; e.touched = false; });
+  updateUI(); setView(currentView);
+});
+for (const b of document.querySelectorAll("#viewSeg button")) b.addEventListener("click", () => setView(b.dataset.view));
+$("copy").addEventListener("click", async () => {
+  const t = $("out").value;
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch (e) {
+    try { $("out").select(); ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+  }
+  $("copy").textContent = ok ? "Copied" : "Select and copy";
+  setTimeout(() => { $("copy").textContent = "Copy"; }, 2000);
+});
+if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  const old = Object.assign({}, mats);
+  makeMats();
+  scene.traverse(o => { if (o.material) for (const k in old) if (o.material === old[k]) { o.material = mats[k]; break; } });
+  legendModel.traverse(o => { if (o.material) for (const k in old) if (o.material === old[k]) { o.material = mats[k]; break; } });
+  buildLegendAxes();
+});
+
+// ---------- a modder's own files ----------
+// Read the way the game reads them: .ini like IniHandler (first section and first key win,
+// comments at ; // #), .obj like its OBJ loader (objects split at o/g, X negated only with
+// ",CORRECT_OBJ_ORIENTATION"), model built like ObjectBaseLoader.BuildModelHierarchy.
+// Model frame: unit root, Unity units (+X starboard, +Y up, +Z forward), as AttachmentPointPosition.
+function parseIni(text) {
+  const sections = new Map(); let cur = null;
+  for (const raw of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const t = raw.split(/;|\/\/|#/)[0].trim();
+    if (!t) continue;
+    const m = t.match(/^\[(.*)\]/);
+    if (m) {
+      const name = m[1];
+      cur = (/^[ =\-*]/.test(name) || sections.has(name)) ? null : new Map();
+      if (cur) sections.set(name, cur);
+      continue;
+    }
+    if (!cur || t.indexOf("=") < 0) continue;
+    const parts = t.split("=");
+    const key = parts[0].trim().toLowerCase();
+    if (!cur.has(key)) cur.set(key, parts.slice(1).map(s => s.trim()).join("="));
+  }
+  const get = (sec, key, def) => { const s = sections.get(sec); const v = s && s.get(key.toLowerCase()); return v === undefined ? def : v; };
+  const vec = (sec, key, def) => {
+    const v = get(sec, key); const p = v === undefined ? [] : v.split(",").map(Number);
+    return (p.length === 3 && p.every(isFinite)) ? p : (def || [0, 0, 0]);
+  };
+  const submodels = () => {
+    if (sections.has("Submodels")) return [...sections.get("Submodels").values()].filter(Boolean);
+    const out = [], n = parseInt(get("Models", "NumberOfSubModels", "0"), 10) || 0;
+    for (let j = 1; j <= n; j++) { const v = get("Models", "SubModel" + j); if (v) out.push(v); }
+    return out;
+  };
+  return { sections, get, vec, submodels, has: s => sections.has(s) };
+}
+
+function parseObj(text, mirrorX) {
+  const V = [], objs = new Map();
+  let cur = null;
+  const use = name => { if (!objs.has(name)) objs.set(name, { name, idx: [] }); cur = objs.get(name); };
+  use("default");
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line[0] === "#") continue;
+    const sp = line.search(/\s/);
+    const kw = sp < 0 ? line : line.slice(0, sp);
+    const rest = sp < 0 ? "" : line.slice(sp + 1).trim();
+    if (kw === "v") {
+      const p = rest.split(/\s+/).map(Number);
+      V.push(mirrorX ? -p[0] : p[0], p[1], p.length > 2 ? p[2] : 0);
+    } else if (kw === "o" || kw === "g") {
+      use(rest);
+    } else if (kw === "f") {
+      const n = V.length / 3;
+      const f = rest.split(/\s+/).map(w => { let i = parseInt(w, 10); if (i < 0) i = n - i; return i - 1; });
+      for (let k = 2; k < f.length; k++) cur.idx.push(f[0], f[k - 1], f[k]);
+    }
+  }
+  const out = new Map();   // name -> {V: Float32Array (Unity units), T: Uint32Array}; empty objects are not built
+  for (const [name, o] of objs) {
+    if (!o.idx.length) continue;
+    const remap = new Map(), pos = [], T = new Uint32Array(o.idx.length);
+    o.idx.forEach((g, k) => {
+      if (!remap.has(g)) {
+        remap.set(g, pos.length / 3);
+        if (g >= 0 && g < n0()) pos.push(V[g * 3], V[g * 3 + 1], V[g * 3 + 2]); else pos.push(0, 0, 0);
+      }
+      T[k] = remap.get(g);
+    });
+    out.set(name, { V: new Float32Array(pos), T });
+  }
+  function n0() { return V.length / 3; }
+  return out;
+}
+
+function classify(name) {
+  const n = name.toLowerCase();
+  if (n.includes("disc") || n.includes("blur")) return "disc";
+  if (n.includes("glass") || n.includes("canopy")) return "glass";
+  if (n.includes("crew") || n.includes("pilot")) return "crew";
+  if (n.includes("blade") || n.includes("rotor") || n.includes("hub") || n.includes("swash")) return "rotor";
+  if (n.includes("gear") || n.includes("wheel") || n.includes("strut") || n.includes("float")) return "gear";
+  return "body";
+}
+const baseName = p => p.replace(/\\/g, "/").split("/").pop().toLowerCase();
+const stem = f => f.replace(/\.[^.]*$/, "");
+
+// files: {inis: [{name, text}], objs: [{name, text}]} -> one helicopter description (page frame, meters)
+function assembleUser(ini, iniName, objFiles, log) {
+  const parsed = new Map();   // file|mirror -> objects
+  const objFor = (file, mirror) => {
+    const k = file.name + "|" + mirror;
+    if (!parsed.has(k)) parsed.set(k, parseObj(file.text, mirror));
+    return parsed.get(k);
+  };
+  const findFile = path => objFiles.find(f => f.name.toLowerCase() === baseName(path));
+  const parts = [], objects = new Map(), missing = [];
+  let rootFile = null, mirror = false;
+  if (ini) {
+    const rr = ini.get("Models", "ResourcesRoot", "");
+    mirror = /CORRECT_OBJ_ORIENTATION/i.test(rr);
+    const rootName = rr.split(",")[0].trim();
+    rootFile = findFile(rootName);
+    if (!rootFile && objFiles.length && /\.obj$/i.test(rootName)) {   // the newest .obj, when none has the right name
+      rootFile = objFiles[0];
+      log.push(`Using ${rootFile.name} for ResourcesRoot=${rootName}.`);
+    }
+    if (!rootFile) log.push(objFiles.length ? `No loaded .obj matches ResourcesRoot=${rootName || "(none)"}.` : `No .obj loaded (ResourcesRoot=${rootName || "(none)"}); showing the .ini points only.`);
+  } else if (objFiles.length) {
+    rootFile = objFiles[0];
+    log.push("No .ini loaded: showing every object in the .obj where it is in the file.");
+  }
+  const root = rootFile ? objFor(rootFile, mirror) : new Map();
+  const bake = (name, mesh, M, submodel) => {
+    const W = new Float32Array(mesh.V.length), v = new THREE.Vector3();
+    for (let k = 0; k < mesh.V.length; k += 3) {
+      v.set(mesh.V[k], mesh.V[k + 1], mesh.V[k + 2]).applyMatrix4(M);
+      W[k] = v.x; W[k + 1] = v.y; W[k + 2] = v.z;
+    }
+    parts.push({ submodel, cat: classify(name), V: W, T: mesh.T });
+  };
+  const trs = (p, r, s) => new THREE.Matrix4().compose(new THREE.Vector3(...p),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0] * Math.PI / 180, r[1] * Math.PI / 180, r[2] * Math.PI / 180, "YXZ")),
+    new THREE.Vector3(...s));
+  if (!ini) {
+    for (const [name, mesh] of root) bake(name, mesh, new THREE.Matrix4(), name);
+  } else {
+    const place = (sub, meshName, parent, pos, rot, scale, visible, altFolder, rootMesh) => {
+      let mesh = null;
+      if (meshName) {
+        mesh = root.get(meshName) || null;
+        if (!mesh && altFolder) {
+          const f = findFile(rootMesh || "");
+          if (f) mesh = objFor(f, /CORRECT_OBJ_ORIENTATION/i.test(rootMesh)).get(meshName) || null;
+        }
+        // A part kept in another model file (usually one of the game's own) is skipped quietly;
+        // a part the .ini expects in this .obj but can't find is worth knowing (a name typo shows nothing in game).
+        if (!mesh && rootFile) { if (!altFolder) missing.push(meshName); return; }
+      }
+      const special = parent && /^(rootobject|visibleparent)$/i.test(parent);
+      let PM = new THREE.Matrix4();
+      if (parent && !special) {
+        if (objects.has(parent)) PM = objects.get(parent);
+      }
+      const M = PM.clone().multiply(trs(pos, rot, scale || [1, 1, 1]));
+      objects.set(sub, M);
+      if (mesh && visible) bake(meshName, mesh, M, sub);
+    };
+    place("__main__", ini.get("Models", "ResourcesMesh", ""), "", [0, 0, 0], [0, 0, 0], null, true, "", "");
+    for (const sm of ini.submodels()) {
+      if (!ini.has(sm)) { log.push(`[${sm}] section missing.`); continue; }
+      const vis = !/^false$/i.test(ini.get(sm, "IsVisible", "true"));
+      place(sm, ini.get(sm, "Mesh", ""), ini.get(sm, "Parent", ""), ini.vec(sm, "Position"), ini.vec(sm, "Rotation"),
+        ini.get(sm, "Scale") !== undefined ? ini.vec(sm, "Scale", [1, 1, 1]) : null, vis,
+        ini.get(sm, "ResourcesMeshFolder", ""), ini.get(sm, "RootMesh", ""));
+    }
+    if (missing.length) log.push(`Not found in ${rootFile.name}: ${missing.join(", ")}.`);
+    // hide the stores the Transport loadout hides (Default where there is no Transport loadout)
+    const secs = [...ini.sections.keys()];
+    const loadout = secs.some(s => /^WeaponSystem\d+Transport$/.test(s)) ? "Transport" : "Default";
+    const hidden = new Set();
+    for (const s of secs) if (new RegExp("^WeaponSystem\\d+" + loadout + "$").test(s))
+      for (const x of (ini.get(s, "SubModelsToHide", "") || "").split(",")) if (x.trim()) hidden.add(x.trim());
+    const descends = (sub, anc) => { for (let n = 0; sub && n < 20; n++) { if (sub === anc) return true; sub = ini.get(sub, "Parent", ""); } return false; };
+    if (hidden.size) parts.splice(0, parts.length, ...parts.filter(p => ![...hidden].some(hd => descends(p.submodel, hd))));
+    var refsU = [], rotorsU = [];
+    for (const [sec, kv] of ini.sections) if (kv.has("attachmentpointposition"))
+      refsU.push({ kind: "attach", type: ini.get(sec, "Type", ""), label: `${sec} ${ini.get(sec, "SystemName", "")} (${ini.get(sec, "Type", "")})`, p: ini.vec(sec, "AttachmentPointPosition") });
+    const nrot = parseInt(ini.get("FlightControls", "NumberOfRotors", "0"), 10) || 0;
+    for (let i = 1; i <= nrot; i++) {
+      const model = ini.get("FlightControls", `Rotor${i}_Model`), disc = ini.get("FlightControls", `Rotor${i}_DiscModel`);
+      const typ = (ini.get("FlightControls", `Rotor${i}_Type`, "") || "").toLowerCase();
+      const axis = (ini.get("FlightControls", `Rotor${i}_RotationAxis`, "Y") || "Y").toUpperCase().slice(-1);
+      if (!objects.has(model)) { log.push(`Rotor${i}: model '${model}' not loaded.`); continue; }
+      const M = objects.get(model);
+      const hub = new THREE.Vector3().setFromMatrixPosition(M);
+      const ax = new THREE.Vector3(axis === "X" ? 1 : 0, axis === "Y" || !"XZ".includes(axis) ? 1 : 0, axis === "Z" ? 1 : 0).transformDirection(M);
+      if (ax.y < 0) ax.negate();
+      let radius = 0;
+      for (const sel of [p => p.submodel === disc, p => p.cat === "rotor" && descends(p.submodel, model)]) {
+        const ps = parts.filter(sel);
+        if (!ps.length) continue;
+        const d = new THREE.Vector3();
+        for (const p of ps) for (let k = 0; k < p.V.length; k += 3) {
+          d.set(p.V[k] - hub.x, p.V[k + 1] - hub.y, p.V[k + 2] - hub.z);
+          d.addScaledVector(ax, -d.dot(ax));
+          radius = Math.max(radius, d.length());
+        }
+        break;
+      }
+      rotorsU.push({ type: typ, hub: hub.toArray(), axis: ax.toArray(), radius });
+      refsU.push({ kind: "rotor", label: `Rotor${i} ${typ} hub (${model})`, p: hub.toArray() });
+    }
+  }
+  const refs = refsU || [], rotors = rotorsU || [];
+  const est = estimateUser(parts.filter(p => p.cat !== "disc" && p.cat !== "crew" && p.cat !== "gear" && p.cat !== "rotor"), refs, rotors, "Starboard");
+  // to the page frame: meters, Z negated (and winding flipped) so three.js shows it unmirrored
+  const page = p => [p[0] * M_PER_UNIT, p[1] * M_PER_UNIT, -p[2] * M_PER_UNIT];
+  const byCat = new Map();
+  for (const p of parts) if (p.cat !== "disc") { if (!byCat.has(p.cat)) byCat.set(p.cat, []); byCat.get(p.cat).push(p); }
+  const meshes = [];
+  for (const [cat, ps] of byCat) {
+    const nv = ps.reduce((a, p) => a + p.V.length, 0), ni = ps.reduce((a, p) => a + p.T.length, 0);
+    const pos = new Float32Array(nv), idx = new Uint32Array(ni);
+    let vo = 0, io = 0;
+    for (const p of ps) {
+      for (let k = 0; k < p.V.length; k += 3) { pos[vo + k] = p.V[k] * M_PER_UNIT; pos[vo + k + 1] = p.V[k + 1] * M_PER_UNIT; pos[vo + k + 2] = -p.V[k + 2] * M_PER_UNIT; }
+      for (let k = 0; k < p.T.length; k += 3) { idx[io + k] = p.T[k] + vo / 3; idx[io + k + 1] = p.T[k + 2] + vo / 3; idx[io + k + 2] = p.T[k + 1] + vo / 3; }
+      vo += p.V.length; io += p.T.length;
+    }
+    meshes.push({ cat, pos, idx });
+  }
+  return {
+    label: iniName, inis: [iniName], side: "Starboard", user: true, meshes,
+    refs: refs.map(r => ({ kind: r.kind, label: r.label, p: page(r.p).map(v => +v.toFixed(4)) })),
+    rotors: rotors.map(r => ({ type: r.type, hub: page(r.hub), axis: [r.axis[0], r.axis[1], -r.axis[2]], radius: r.radius * M_PER_UNIT })),
+    est: page(est.p).map(v => +v.toFixed(3)), estFrom: est.from,
+  };
+}
+
+// Starting point (the rule of ../winch-tuner/estimate.py), in Unity units: fore and aft at the
+// dipping-sonar attachment point or the main rotor hub, at the top of the cabin side wall,
+// 0.5 m outside the skin on the hoist side.
+function estimateUser(parts, refs, rotors, side) {
+  const u = 1 / M_PER_UNIT;
+  const tris = [];
+  for (const p of parts) for (let k = 0; k < p.T.length; k += 3)
+    for (const j of [p.T[k], p.T[k + 1], p.T[k + 2]]) tris.push(p.V[j * 3], p.V[j * 3 + 1], p.V[j * 3 + 2]);
+  const raycast = (o, d) => {
+    const hits = [];
+    for (let k = 0; k < tris.length; k += 9) {
+      const e1 = [tris[k + 3] - tris[k], tris[k + 4] - tris[k + 1], tris[k + 5] - tris[k + 2]];
+      const e2 = [tris[k + 6] - tris[k], tris[k + 7] - tris[k + 1], tris[k + 8] - tris[k + 2]];
+      const pv = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]];
+      const det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
+      if (Math.abs(det) < 1e-14) continue;
+      const inv = 1 / det, s = [o[0] - tris[k], o[1] - tris[k + 1], o[2] - tris[k + 2]];
+      const uu = (s[0] * pv[0] + s[1] * pv[1] + s[2] * pv[2]) * inv;
+      if (uu < 0 || uu > 1) continue;
+      const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]];
+      const vv = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) * inv;
+      if (vv < 0 || uu + vv > 1) continue;
+      const t = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) * inv;
+      if (t > 1e-9) hits.push(t);
+    }
+    return hits.sort((a, b) => a - b);
+  };
+  const mains = rotors.filter(r => r.type === "main");
+  const pool = mains.length ? mains : rotors;
+  const hub = pool.length ? pool.reduce((a, b) => (b.hub[2] > a.hub[2] ? b : a)).hub : [0, 0, 0];
+  const sonar = refs.find(r => r.kind === "attach" && (r.type || "").toLowerCase() === "sonar");
+  const z0 = sonar ? sonar.p[2] : hub[2];
+  const from = sonar ? "dipping-sonar attachment point" : (pool.length ? "main rotor hub" : "model origin");
+  const sg = side === "Starboard" ? 1 : -1;
+  let top = null, bot = null;
+  for (const xo of [0, 0.3 * u * sg, -0.3 * u * sg]) {
+    const h = raycast([xo, 50 * u, z0], [0, -1, 0]);
+    if (h.length) { top = 50 * u - h[0]; const hb = raycast([xo, -50 * u, z0], [0, 1, 0]); bot = hb.length ? -50 * u + hb[0] : top - 3 * u; break; }
+  }
+  if (top === null) { top = hub[1]; bot = hub[1] - 3 * u; }
+  const ys = [], xs = [];
+  const hi = Math.min(top, hub[1] - 0.3 * u);
+  for (let y = bot + 0.35 * (top - bot); y <= hi; y += 0.025 * u) {
+    const h = raycast([sg * 20 * u, y, z0], [-sg, 0, 0]);
+    if (h.length) { ys.push(y); xs.push(20 * u - h[0]); }
+  }
+  let yh, xs0;
+  if (xs.length) {
+    const wmax = Math.max(...xs);
+    let best = -1;
+    xs.forEach((x, k) => { if (x >= wmax - 0.12 * u && (best < 0 || ys[k] > ys[best])) best = k; });
+    yh = ys[best]; xs0 = sg * xs[best];
+  } else { yh = bot + 0.65 * (top - bot); xs0 = sg * u; }
+  return { p: [xs0 + sg * 0.5 * u, yh, z0], from };
+}
+
+
+function readText(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsText(file); });
+}
+// Files add up: a new unit .ini replaces the old one, a new .obj joins the others (same name replaces).
+const loaded = { ini: null, objs: new Map() };   // ini: {name, ini}; objs: name -> {name, text}, newest last
+async function addFiles(list) {
+  const log = [];
+  for (const f of list) {
+    const t = await readText(f);
+    if (/\.obj$/i.test(f.name)) { loaded.objs.delete(f.name); loaded.objs.set(f.name, { name: f.name, text: t }); }
+    else if (/\.ini$/i.test(f.name)) {
+      // the unit .ini is the one with a [Models] section; material and squadron files are skipped
+      const ini = parseIni(t);
+      if (ini.has("Models")) loaded.ini = { name: f.name, ini };
+      else log.push(`${f.name} has no [Models] section, so it isn't the unit .ini.`);
+    }
+  }
+  rebuild(log);
+}
+function removeFile(kind, name) {
+  if (kind === "ini") loaded.ini = null; else loaded.objs.delete(name);
+  rebuild([]);
+}
+function renderSlots() {
+  const rows = [["ini", loaded.ini ? [loaded.ini.name] : []], ["obj", [...loaded.objs.keys()]]];
+  const box = $("slots");
+  box.textContent = "";
+  for (const [kind, names] of rows) for (const name of (names.length ? names : [null])) {
+    const row = document.createElement("div"); row.className = "slot";
+    const k = document.createElement("span"); k.className = "k"; k.textContent = "." + kind;
+    const v = document.createElement("span"); v.className = "v" + (name ? "" : " empty"); v.textContent = name || "\u2013";
+    row.append(k, v);
+    if (name) {
+      const x = document.createElement("button");
+      x.className = "ghost icon"; x.textContent = "\u00d7"; x.setAttribute("aria-label", "Remove " + name);
+      x.addEventListener("click", () => removeFile(kind, name));
+      row.append(x);
+    }
+    box.append(row);
+  }
+}
+function rebuild(log) {
+  renderSlots();
+  const objs = [...loaded.objs.values()].reverse();   // newest first
+  let h = null;
+  if (loaded.ini) h = assembleUser(loaded.ini.ini, stem(loaded.ini.name), objs, log);
+  else if (objs.length) h = assembleUser(null, stem(objs[0].name), objs, log);
+  $("loadLog").textContent = log.join(" ");
+  if (cur) scene.remove(cur.built.group);
+  if (!h) { cur = null; marker.visible = false; buildLegendModel(null); updateUI(); return; }
+  cur = { h, built: buildHelo(h) };
+  scene.add(cur.built.group);
+  buildLegendModel(cur.built);
+  const e = state.inis[h.inis[0]];   // keep earlier edits on the same unit; refresh an untouched starting point
+  if (!e || !e.touched || !validP(e.p) || (e.side !== "Port" && e.side !== "Starboard")) state.inis[h.inis[0]] = defaultEntry(h);
+  persist();
+  updateUI();
+  setView(currentView);
+}
+$("choose").addEventListener("click", () => $("files").click());
+$("files").addEventListener("change", async ev => { await addFiles([...ev.target.files]); ev.target.value = ""; });
+// drop anywhere on the page; the file box lights up while dragging
+const drop = $("drop");
+window.addEventListener("dragover", ev => { ev.preventDefault(); drop.classList.add("over"); });
+window.addEventListener("dragleave", ev => { if (!ev.relatedTarget) drop.classList.remove("over"); });
+window.addEventListener("drop", ev => { ev.preventDefault(); drop.classList.remove("over"); if (ev.dataTransfer && ev.dataTransfer.files.length) addFiles([...ev.dataTransfer.files]); });
+
+// ---------- help: hover or focus shows the card, a click pins it, Escape or a click elsewhere closes ----------
+let pinned = null, hideTimer = 0;
+function placeTip(btn, tip) {
+  tip.hidden = false;
+  const r = btn.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  const top = r.bottom + 6 + h > window.innerHeight - 8 ? r.top - 6 - h : r.bottom + 6;
+  tip.style.left = left + "px"; tip.style.top = Math.max(8, top) + "px";
+}
+function showTip(btn) { clearTimeout(hideTimer); hideAllTips(btn); placeTip(btn, $(btn.dataset.help)); btn.setAttribute("aria-expanded", "true"); }
+function hideAllTips(except) {
+  for (const b of document.querySelectorAll(".help")) if (b !== except && b !== pinned) { $(b.dataset.help).hidden = true; b.setAttribute("aria-expanded", "false"); }
+}
+function closePinned() { if (pinned) { const b = pinned; pinned = null; $(b.dataset.help).hidden = true; b.setAttribute("aria-expanded", "false"); } }
+for (const btn of document.querySelectorAll(".help")) {
+  const tip = $(btn.dataset.help);
+  btn.addEventListener("mouseenter", () => showTip(btn));
+  btn.addEventListener("focus", () => showTip(btn));
+  const later = () => { hideTimer = setTimeout(() => { if (pinned !== btn) { tip.hidden = true; btn.setAttribute("aria-expanded", "false"); } }, 250); };
+  btn.addEventListener("mouseleave", later);
+  btn.addEventListener("blur", later);
+  tip.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+  tip.addEventListener("mouseleave", later);
+  btn.addEventListener("click", ev => { ev.stopPropagation(); if (pinned === btn) closePinned(); else { closePinned(); pinned = btn; showTip(btn); } });
+}
+document.addEventListener("click", ev => { if (pinned && !$(pinned.dataset.help).contains(ev.target)) closePinned(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") { closePinned(); hideAllTips(null); } });
+window.addEventListener("resize", () => { if (pinned) placeTip(pinned, $(pinned.dataset.help)); });
+
+function loop() {
+  controls.update();
+  renderer.render(scene, camera);
+  renderLegend();
+  requestAnimationFrame(loop);
+}
+renderSlots();
+buildLegendModel(null);
+updateUI();
+resize();
+loop();
+</script>
+</body>
+</html>
